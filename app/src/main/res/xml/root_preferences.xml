@@ -1,0 +1,58 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/device_header">
+        <Preference
+            android:key="connect_device"
+            android:summary="@string/no_device_connected"
+            android:title="@string/device_connect" />
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="display_light_theme"
+            android:summary="@string/summary_display_light_theme"
+            android:title="@string/title_display_light_theme" />
+        <SeekBarPreference
+            android:defaultValue="20"
+            android:key="display_brightness"
+            android:max="100"
+            android:min="0"
+            app:seekBarIncrement="1"
+            android:summary="@string/summary_display_brightness"
+            android:title="@string/title_display_brightness" />
+        <EditTextPreference
+            android:defaultValue="60"
+            android:key="speed_warning_limit"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:inputType="number"
+            android:title="@string/title_speed_limit" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/service_header" android:summary="@string/service_summary">
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="enable_service"
+            android:summary="@string/service_enable_notice"
+            android:title="@string/service_enable" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/permissions_header" android:summary="@string/permissions_summary">
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="access_notification"
+            android:title="@string/permission_access_notification" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="post_notification"
+            android:title="@string/permission_post_notification" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="access_location"
+            android:title="@string/permission_access_location" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="access_bluetooth"
+            android:title="@string/permission_access_bluetooth" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

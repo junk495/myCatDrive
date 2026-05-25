@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">CatDrive</string>
+    <string name="title_home">Home</string>
+    <string name="title_settings">Settings</string>
+    <string name="title_devices">Devices</string>
+
+    <!-- Preference Titles -->
+    <string name="device_header">Device</string>
+    <string name="service_header">Service</string>
+    <string name="service_summary">Run services to receive navigation data</string>
+    <string name="permissions_header">Permissions</string>
+    <string name="permissions_summary">Grant all these permissions for the app to work</string>
+
+    <string name="device_connect">Select a device</string>
+    <string name="no_device_connected">No device connected</string>
+
+    <!-- Service Preferences -->
+    <string name="service_enable">Run services</string>
+    <string name="service_enable_notice">Requires all permissions allowed &amp; bluetooth turned on</string>
+    <string name="action_settings">Go to notification settings</string>
+
+    <string name="permission_access_notification">Accessing notifications</string>
+    <string name="permission_post_notification">Posting notifications</string>
+    <string name="permission_access_location">Accessing location</string>
+    <string name="permission_access_bluetooth">Accessing bluetooth</string>
+    <string name="summary_display_light_theme">Turn device display light theme on or off</string>
+    <string name="title_display_light_theme">LCD light theme</string>
+    <string name="summary_display_brightness">Change device LCD brightness to improve visibility</string>
+    <string name="title_display_brightness">Display brightness</string>
+    <string name="title_speed_limit">Speed warning limit</string>
+    <string name="scan">Scan</string>
+
+</resources>
