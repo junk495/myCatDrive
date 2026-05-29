@@ -52,10 +52,13 @@ class HomeFragment : Fragment() {
             return
         }
 
-        binding.txtRoadName.text = data.nextDirection.nextRoad
-        binding.txtRoadAdditionalInfo.text = data.nextDirection.nextRoadAdditionalInfo
-        binding.txtDistance.text = data.nextDirection.distance
-        binding.txtEta.text = "${data.eta.ete} - ${data.eta.eta} - ${data.eta.distance}"
+        binding.txtRoadName.text = data.nextDirection.nextRoad ?: "---"
+        binding.txtRoadAdditionalInfo.text = data.nextDirection.nextRoadAdditionalInfo ?: "---"
+        binding.txtDistance.text = data.nextDirection.distance ?: "---"
+        val ete = data.eta.ete ?: "---"
+        val eta = data.eta.eta ?: "---"
+        val dist = data.eta.distance ?: "---"
+        binding.txtEta.text = "$ete | $dist | $eta"
     }
 
     override fun onCreateView(

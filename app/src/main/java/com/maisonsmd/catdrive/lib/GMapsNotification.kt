@@ -105,10 +105,16 @@ internal class GMapsNotification(cx: Context, sbn: StatusBarNotification) : Navi
 
         // parse ETE & ETA
         if (etaText != null) {
-            val etaList = etaText.text.split("·")
-            if (etaList.size == 3) {
+            val text = etaText.text.toString()
+            Timber.d("Parsing ETA text: $text")
+            val etaList = text.split("·")
+            if (etaList.size >= 3) {
+                val ete = etaList[0].trim()
                 val distance = etaList[1].trim()
-                data.eta = NavigationEta(etaList[2].removeSuffix("ETA").trim(), etaList[0].trim(), distance)
+                val eta = etaList[2].trim().removeSuffix("ETA").trim()
+                data.eta = NavigationEta(eta, ete, distance)
+            } else {
+                Timber.w("ETA text does not have expected format (size ${etaList.size}): $text")
             }
         }
 
