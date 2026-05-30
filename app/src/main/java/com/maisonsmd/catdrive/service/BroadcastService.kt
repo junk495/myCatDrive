@@ -89,8 +89,7 @@ class BleService : Service(), LocationListener {
 
     private val navigationReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent) {
-            mLastNavigationData = intent.getParcelableExtraCompat<NavigationData>("navigation_data")
-            sendToDevice(mLastNavigationData)
+            // Veralteter Google Maps Empfänger - deaktiviert
         }
     }
 
@@ -209,7 +208,7 @@ class BleService : Service(), LocationListener {
 
         // Distanz zur nächsten Abbiegung formatieren
         val distanceStr = when {
-            distance < 0 -> "---"
+            distance < 0 -> ""
             distance >= 1000 -> String.format(java.util.Locale.US, "%.1f km", distance / 1000.0)
             else -> "${distance.toInt()} m"
         }
@@ -263,7 +262,7 @@ class BleService : Service(), LocationListener {
                 PointRteAction.ROUNDABOUT_EXIT_1, PointRteAction.ROUNDABOUT_EXIT_2, 
                 PointRteAction.ROUNDABOUT_EXIT_3, PointRteAction.ROUNDABOUT_EXIT_4,
                 PointRteAction.ROUNDABOUT_EXIT_5, PointRteAction.ROUNDABOUT_EXIT_6,
-                PointRteAction.ROUNDABOUT_EXIT_7, PointRteAction.ROUNDABOUT_EXIT_8 -> R.drawable.roundabout
+                PointRteAction.ROUNDABOUT_EXIT_7, PointRteAction.ROUNDABOUT_EXIT_8 -> R.drawable.roundabout_left
                 
                 PointRteAction.ARRIVE_DEST, PointRteAction.ARRIVE_DEST_LEFT, PointRteAction.ARRIVE_DEST_RIGHT -> android.R.drawable.ic_menu_myplaces
 
@@ -273,6 +272,9 @@ class BleService : Service(), LocationListener {
             // Konvertiere Vector/Drawable zu Bitmap für das Bluetooth-System
             val drawable = ContextCompat.getDrawable(applicationContext, iconRes)
             drawable?.let {
+                // Erzwinge weiße Farbe für das Bitmap
+                androidx.core.graphics.drawable.DrawableCompat.setTint(it, android.graphics.Color.WHITE)
+
                 val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(bitmap)
                 it.setBounds(0, 0, canvas.width, canvas.height)
@@ -295,7 +297,7 @@ class BleService : Service(), LocationListener {
                     putExtra("navigation_data", navData)
                 }
             )
-            // Auch direkt über Bluetooth senden
+            // Auch direkt über Bluetooth senden (NUR HIER!)
             sendToDevice(navData)
         }
     }
@@ -727,9 +729,9 @@ class BleService : Service(), LocationListener {
             this, 0, intent,
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        mNotificationBuilder = builder.setContentTitle("CatDrive")
+        mNotificationBuilder = builder.setContentTitle("LocusDrive")
             .setContentText("Service is running")
-            .setSmallIcon(android.R.drawable.ic_menu_mapmode)
+            .setSmallIcon(R.drawable.screen_share)
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

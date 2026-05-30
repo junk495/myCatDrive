@@ -32,8 +32,6 @@ const val SHARED_PREFERENCES_FILE = "catdrive.preferences"
 class MainActivity : AppCompatActivity() {
     private lateinit var mBinding: ActivityMainBinding
     private lateinit var mViewModel: ActivityViewModel
-    private var mNavigationService: GoogleMapNotificationListener? = null
-    private var mNavigationServiceBound = false
     private var mBroadcastService: BleService? = null
     private var mBroadcastServiceBound = false
     private lateinit var mSharedPref: SharedPreferences
@@ -54,26 +52,6 @@ class MainActivity : AppCompatActivity() {
         mViewModel.permissionUpdatedTimestamp.postValue(System.currentTimeMillis())
     }
 
-    // Bind GoogleMapNotificationListener service
-    private val navigationConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            if (service !is GoogleMapNotificationListener.LocalBinder) return
-
-            mNavigationService = service.getService()
-            mNavigationServiceBound = true
-
-            Timber.d("$name connected")
-            mViewModel.navigationData.postValue(mNavigationService!!.lastNavigationData)
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            mNavigationService = null
-            mNavigationServiceBound = false
-            Timber.d("$name disconnected")
-            mViewModel.navigationData.postValue(NavigationData())
-        }
-    }
-
     // Bind BroadcastService service
     private val broadcastConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -90,7 +68,6 @@ class MainActivity : AppCompatActivity() {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             mBroadcastService = null
-            mNavigationServiceBound = false
             Timber.d("$name disconnected")
             mViewModel.navigationData.postValue(NavigationData())
             mViewModel.serviceRunInBackground.postValue(false)
@@ -180,7 +157,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendLastNavigationDataToDevice() {
-        mBroadcastService?.sendToDevice(mNavigationService?.lastNavigationData)
+        // Daten werden nun direkt vom BleService via Polling gesendet
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -216,9 +193,6 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         checkPermissions()
 
-        // Listen to GoogleMapNotificationListener dat
-        LocalBroadcastManager.getInstance(this)
-            .registerReceiver(navigationReceiver, IntentFilter(Intents.NAVIGATION_UPDATE))
         // Listen to BroadcastService data
         LocalBroadcastManager.getInstance(this)
             .registerReceiver(broadcastReceiver, IntentFilter().apply {
@@ -226,10 +200,11 @@ class MainActivity : AppCompatActivity() {
                 addAction(Intents.CONNECTION_UPDATE)
                 addAction(Intents.BACKGROUND_SERVICE_STATUS)
             })
+        
+        // Listen to Locus Updates
+        LocalBroadcastManager.getInstance(this)
+            .registerReceiver(navigationReceiver, IntentFilter(Intents.NAVIGATION_UPDATE))
 
-        Intent(this, GoogleMapNotificationListener::class.java).also { intent ->
-            intent.action = Intents.BIND_LOCAL_SERVICE
-        }.also { intent -> bindService(intent, navigationConnection, Context.BIND_AUTO_CREATE) }
         Intent(this, BleService::class.java)
             .also { intent -> intent.action = Intents.BIND_LOCAL_SERVICE }
             .also { intent -> bindService(intent, broadcastConnection, Context.BIND_AUTO_CREATE) }
@@ -243,12 +218,6 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver)
 
         Timber.i("onStop")
-
-        if (mNavigationServiceBound) {
-            mNavigationServiceBound = false
-            mNavigationService = null
-            unbindService(navigationConnection)
-        }
 
         if (mBroadcastServiceBound) {
             mBroadcastServiceBound = false

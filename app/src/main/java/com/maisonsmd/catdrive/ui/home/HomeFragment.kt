@@ -32,6 +32,8 @@ class HomeFragment : Fragment() {
     private fun displayNavigationData(data: NavigationData?) {
         val bitmap = data?.actionIcon?.bitmap
         binding.imgTurnIcon.setImageBitmap(bitmap)
+        // Färbe das Icon weiß ein, falls es ein dunkles Icon ist
+        binding.imgTurnIcon.setColorFilter(android.graphics.Color.WHITE)
 
         if (data == null) {
             binding.txtRoadName.text = "---"

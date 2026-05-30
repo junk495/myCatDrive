@@ -13,7 +13,6 @@ import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.maisonsmd.catdrive.GoogleMapNotificationListener
 import com.maisonsmd.catdrive.lib.Intents
 import timber.log.Timber
 
@@ -28,10 +27,8 @@ class PermissionCheck {
         }
 
         fun checkNotificationsAccessPermission(context: Context): Boolean {
-            val listeners = Settings.Secure.getString(
-                context.contentResolver, "enabled_notification_listeners"
-            )
-            return listeners != null && GoogleMapNotificationListener::class.qualifiedName.toString() in listeners
+            // Locus Polling benötigt keinen Notification Listener Zugriff mehr
+            return true
         }
 
         fun checkNotificationPostingPermission(context: Context): Boolean {

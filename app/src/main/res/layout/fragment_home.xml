@@ -27,7 +27,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
-        app:srcCompat="@drawable/roundabout" />
+        app:srcCompat="@drawable/roundabout_left" />
 
     <TextView
         android:id="@+id/txtRoadName"

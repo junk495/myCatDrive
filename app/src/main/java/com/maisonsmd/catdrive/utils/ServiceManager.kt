@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import com.maisonsmd.catdrive.GoogleMapNotificationListener
 import com.maisonsmd.catdrive.lib.Intents
 import com.maisonsmd.catdrive.service.BleService
 import com.maisonsmd.catdrive.ui.ActivityViewModel
@@ -56,10 +55,6 @@ class ServiceManager {
             activity.startService(
                 Intent(
                     activity, BleService::class.java
-                ).apply { action = Intents.DISABLE_SERVICES })
-            activity.startService(
-                Intent(
-                    activity, GoogleMapNotificationListener::class.java
                 ).apply { action = Intents.DISABLE_SERVICES })
         }
 
