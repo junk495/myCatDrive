@@ -28,6 +28,9 @@ import android.os.PowerManager
 import android.util.Size
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.maisonsmd.catdrive.MainActivity
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.core.content.ContextCompat
 import com.maisonsmd.catdrive.R
 import com.maisonsmd.catdrive.SHARED_PREFERENCES_FILE
 import com.maisonsmd.catdrive.lib.BitmapHelper
@@ -36,6 +39,7 @@ import com.maisonsmd.catdrive.lib.BleWriteQueue
 import com.maisonsmd.catdrive.lib.BleWriteQueue.QueueItem
 import com.maisonsmd.catdrive.lib.Intents
 import com.maisonsmd.catdrive.lib.NavigationData
+import com.maisonsmd.catdrive.lib.NavigationIcon
 import com.maisonsmd.catdrive.utils.PermissionCheck
 import com.maisonsmd.catdrive.utils.getParcelableExtraCompat
 import kotlinx.coroutines.*
@@ -43,6 +47,7 @@ import locus.api.android.ActionBasics
 import locus.api.android.features.periodicUpdates.UpdateContainer
 import locus.api.android.utils.LocusUtils
 import locus.api.objects.Storable
+import locus.api.objects.extra.PointRteAction
 import locus.api.utils.DataReaderBigEndian
 import timber.log.Timber
 import java.security.MessageDigest
@@ -197,7 +202,7 @@ class BleService : Service(), LocationListener {
         val distance = container.guideNavPoint1Dist
         
         // Extrahiere Pfeil-Aktion
-        // val action = container.guideNavPoint1Action // Später für Pfeil-Icons
+        val action = container.guideNavPoint1Action
         
         // Extrahiere Gesamtdistanz zum Ziel
         val totalDistance = container.guideDistToFinish
@@ -241,6 +246,27 @@ class BleService : Service(), LocationListener {
                 ete = eteStr,
                 distance = totalDistanceStr 
             )
+            
+            // Map Locus Action to Icon
+            val iconRes = when (action) {
+                PointRteAction.LEFT, PointRteAction.LEFT_SLIGHT, PointRteAction.STAY_LEFT -> android.R.drawable.ic_menu_revert
+                PointRteAction.RIGHT, PointRteAction.RIGHT_SLIGHT, PointRteAction.STAY_RIGHT -> android.R.drawable.ic_menu_directions
+                PointRteAction.LEFT_SHARP -> android.R.drawable.ic_menu_revert
+                PointRteAction.RIGHT_SHARP -> android.R.drawable.ic_menu_directions
+                PointRteAction.CONTINUE_STRAIGHT, PointRteAction.STAY_STRAIGHT -> android.R.drawable.ic_menu_upload
+                PointRteAction.ROUNDABOUT_EXIT_1, PointRteAction.ROUNDABOUT_EXIT_2, PointRteAction.ROUNDABOUT_EXIT_3 -> R.drawable.roundabout
+                else -> android.R.drawable.ic_menu_compass
+            }
+            
+            // Konvertiere Vector/Drawable zu Bitmap für das Bluetooth-System
+            val drawable = ContextCompat.getDrawable(applicationContext, iconRes)
+            drawable?.let {
+                val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                it.setBounds(0, 0, canvas.width, canvas.height)
+                it.draw(canvas)
+                this.actionIcon = NavigationIcon(bitmap)
+            }
         }
 
         // Verhindere Flackern: Nur senden, wenn sich die Daten geändert haben

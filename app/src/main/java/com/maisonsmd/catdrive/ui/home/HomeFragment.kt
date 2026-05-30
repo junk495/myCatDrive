@@ -1,10 +1,13 @@
 package com.maisonsmd.catdrive.ui.home
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.graphics.scale
@@ -27,38 +30,30 @@ class HomeFragment : Fragment() {
     private val binding get() = mUiBinding!!
 
     private fun displayNavigationData(data: NavigationData?) {
-        val bitmap =
-            if (!mDebugImage) data?.actionIcon?.bitmap
-            else resources.getDrawable(R.drawable.roundabout).toBitmap()
-
+        val bitmap = data?.actionIcon?.bitmap
         binding.imgTurnIcon.setImageBitmap(bitmap)
-        /*
-        val bh = BitmapHelper()
-        val compressed = bh.compressBitmap(bitmap, Size(32, 32))
-        binding.imgScaled.setImageDrawable(
-            BitmapHelper.AliasingDrawableWrapper(
-                bitmap?.scale(32, 32, false)?.toDrawable(resources)
-            )
-        )
-        binding.imgFinal.setImageDrawable(BitmapHelper.AliasingDrawableWrapper(compressed.toDrawable(resources)))
-        // Timber.e(BitmapHelper().toBase64(compressed))
-        */
 
         if (data == null) {
             binding.txtRoadName.text = "---"
-            binding.txtRoadAdditionalInfo.text = "---"
+            binding.txtRoadAdditionalInfo.text = ""
             binding.txtDistance.text = "---"
             binding.txtEta.text = "---"
             return
         }
 
         binding.txtRoadName.text = data.nextDirection.nextRoad ?: "---"
-        binding.txtRoadAdditionalInfo.text = data.nextDirection.nextRoadAdditionalInfo ?: "---"
+        binding.txtRoadAdditionalInfo.text = data.nextDirection.nextRoadAdditionalInfo ?: ""
         binding.txtDistance.text = data.nextDirection.distance ?: "---"
+        
         val ete = data.eta.ete ?: "---"
         val eta = data.eta.eta ?: "---"
         val dist = data.eta.distance ?: "---"
-        binding.txtEta.text = "$ete | $dist | $eta"
+        
+        if (ete == "---" && eta == "---" && dist == "---") {
+            binding.txtEta.text = "---"
+        } else {
+            binding.txtEta.text = "$ete | $dist | $eta"
+        }
     }
 
     override fun onCreateView(
