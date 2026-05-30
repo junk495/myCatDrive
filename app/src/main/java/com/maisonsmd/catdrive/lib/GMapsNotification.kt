@@ -99,44 +99,45 @@ internal class GMapsNotification(cx: Context, sbn: StatusBarNotification) : Navi
 
         val allTexts = mutableListOf<String>()
         findAllTexts(group, allTexts)
+        
+        // Füge System-Extras hinzu, falls vorhanden
+        mNotification.extras.apply {
+            getCharSequence(Notification.EXTRA_TITLE)?.let { allTexts.add(it.toString()) }
+            getCharSequence(Notification.EXTRA_TEXT)?.let { allTexts.add(it.toString()) }
+            getCharSequence(Notification.EXTRA_SUB_TEXT)?.let { allTexts.add(it.toString()) }
+        }
 
         val titleText = findChildByName(group, "title") as TextView?
         val directionText = findChildByName(group, "text") as TextView?
         val rightIcon = findChildByName(group, "right_icon") as ImageView?
 
-        // Bestehende Werte beibehalten, falls wir in einer anderen View schon was gefunden haben
         var ete: String? = data.eta.ete
         var totalDistance: String? = data.eta.distance
         var arrivalTime: String? = data.eta.eta
 
-        // Ignoriere die Texte der Wegbeschreibung für die ETA-Suche
-        val ignoreTexts = listOfNotNull(
-            titleText?.text?.toString(),
-            directionText?.text?.toString()
-        )
+        // Wir filtern Texte, die zur aktuellen Abbiegeanweisung gehören (z. B. "270 m")
+        val turnInfo = listOfNotNull(titleText?.text?.toString(), directionText?.text?.toString())
 
         for (text in allTexts) {
-            if (ignoreTexts.any { it == text } || text.contains("Richtung") || text.contains("abbiegen")) continue
-
+            // Teile an allen gängigen Trennern
             val parts = text.split(Regex("[·•|\\n]")).map { it.trim() }.filter { it.isNotEmpty() }
             
             for (part in parts) {
-                when {
-                    // Fahrzeit: "1 h 17 min", "15 min", "1 Std. 5 Min."
-                    part.matches(Regex(".*\\d+\\s*(h|min|Std|Min).*")) -> {
-                        if (ete == null || ete == "---") ete = part
+                // 1. Fahrzeit (ETE)
+                if (part.contains(Regex("\\d+\\s*(h|min|Std|Min)"))) {
+                    if (ete == null || ete == "---") ete = part
+                }
+                // 2. Ankunftszeit (ETA)
+                else if (part.contains(Regex("\\d{1,2}:\\d{2}"))) {
+                    if (arrivalTime == null || arrivalTime == "---") {
+                        arrivalTime = part.replace(Regex("Ankunft um|Ankunft|ETA"), "").trim()
                     }
-                    
-                    // Gesamtstrecke: "93 km", "800 m"
-                    part.matches(Regex(".*\\d+\\s*(km|m)$")) -> {
+                }
+                // 3. Gesamtstrecke (Distance)
+                // Wir nehmen nur Distanzen, die NICHT Teil der aktuellen Abbiege-Info sind
+                else if (part.contains(Regex("\\d+\\s*(km|m)"))) {
+                    if (!turnInfo.any { it.contains(part) }) {
                         if (totalDistance == null || totalDistance == "---") totalDistance = part
-                    }
-                    
-                    // Ankunftszeit: "09:24"
-                    part.matches(Regex(".*\\d{1,2}:\\d{2}.*")) -> {
-                        if (arrivalTime == null || arrivalTime == "---") {
-                            arrivalTime = part.replace(Regex("Ankunft um|Ankunft|ETA"), "").trim()
-                        }
                     }
                 }
             }
