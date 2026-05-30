@@ -27,7 +27,7 @@ import com.maisonsmd.catdrive.utils.ServiceManager
 import com.maisonsmd.catdrive.utils.getParcelableExtraCompat
 import timber.log.Timber
 
-const val SHARED_PREFERENCES_FILE = "${BuildConfig.APPLICATION_ID}.preferences"
+const val SHARED_PREFERENCES_FILE = "catdrive.preferences"
 
 class MainActivity : AppCompatActivity() {
     private lateinit var mBinding: ActivityMainBinding

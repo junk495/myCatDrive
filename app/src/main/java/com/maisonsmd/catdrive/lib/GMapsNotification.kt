@@ -18,6 +18,10 @@ import org.json.JSONObject
 import timber.log.Timber
 
 const val GMAPS_PACKAGE = "com.google.android.apps.maps"
+const val WAZE_PACKAGE = "com.waze"
+const val LOCUS_PACKAGE = "menion.android.locus"
+
+val SUPPORTED_PACKAGES = listOf(GMAPS_PACKAGE, WAZE_PACKAGE, LOCUS_PACKAGE)
 
 enum class ContentViewType {
     NORMAL,

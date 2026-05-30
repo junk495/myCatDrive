@@ -1,14 +1,14 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'org.jetbrains.kotlin.plugin.serialization' version '1.7.20'
+    id 'org.jetbrains.kotlin.plugin.serialization' version '2.1.0'
     id 'kotlin-parcelize'
 }
 
 ext {
-    kotlin_version = "1.7.20"
-    kotlix_serialization_version = "1.4.1"
-    kotlix_coroutines_version = "1.4.2"
+    kotlin_version = "2.1.0"
+    kotlix_serialization_version = "1.6.3"
+    kotlix_coroutines_version = "1.7.3"
     lifecycle_version = "2.5.1"
     catdrive_version = '1.0.0'
 }
@@ -18,11 +18,11 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.maisonsmd.catdrive"
+        applicationId "com.maisonsmd.catdrive.locus"
         minSdk 31
         targetSdk 34
         versionCode 1
-        versionName "1.0"
+        versionName "1.0-locus"
     }
 
     buildTypes {
@@ -64,4 +64,5 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-cbor:$kotlix_serialization_version"
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+    implementation 'com.github.asamm.locus-api:locus-api-android:0.10.0'
 }

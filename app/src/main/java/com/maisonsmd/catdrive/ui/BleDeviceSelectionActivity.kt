@@ -127,22 +127,39 @@ class BleDeviceSelectionActivity : AppCompatActivity() {
     private fun getDeviceList() {
         if (!PermissionCheck.checkBluetoothPermissions(this)) {
             Timber.e("No bluetooth permission")
+            android.widget.Toast.makeText(this, "Bluetooth-Berechtigung fehlt!", android.widget.Toast.LENGTH_SHORT).show()
             PermissionCheck.requestBluetoothAccessPermissions(this)
             return
         }
 
-        mViewDeviceAdapter.clear()
+        if (!PermissionCheck.isBluetoothEnabled(this)) {
+            android.widget.Toast.makeText(this, "Bitte Bluetooth aktivieren!", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        mAdapter.bluetoothLeScanner.startScan(mCallback)
-        isScanning = true
-        scanButton.isEnabled = false
-        // Stop after 5s
-        Handler().postDelayed({
-            if (isScanning) {
-                isScanning = false
-                scanButton.isEnabled = true
-                mAdapter.bluetoothLeScanner?.stopScan(mCallback)
-            }
-        }, 5000)
+        mViewDeviceAdapter.clear()
+        
+        try {
+            mAdapter.bluetoothLeScanner.startScan(mCallback)
+            isScanning = true
+            scanButton.isEnabled = false
+            android.widget.Toast.makeText(this, "Suche läuft...", android.widget.Toast.LENGTH_SHORT).show()
+            
+            // Stop after 5s
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (isScanning) {
+                    isScanning = false
+                    scanButton.isEnabled = true
+                    try {
+                        mAdapter.bluetoothLeScanner?.stopScan(mCallback)
+                    } catch (e: Exception) {
+                        Timber.e(e)
+                    }
+                }
+            }, 5000)
+        } catch (e: Exception) {
+            Timber.e(e)
+            android.widget.Toast.makeText(this, "Scan-Fehler: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 }

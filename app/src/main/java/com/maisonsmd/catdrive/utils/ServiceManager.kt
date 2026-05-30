@@ -24,10 +24,13 @@ class ServiceManager {
                     activity,
                     BleService::class.java
                 ).apply { setAction(action) })
+            // GoogleMapNotificationListener deaktiviert, da wir Locus-Polling nutzen
+            /*
             activity.startService(
                 Intent(
                     activity, GoogleMapNotificationListener::class.java
                 ).apply { setAction(action) })
+            */
         }
 
         fun requestConnectDevice(activity: AppCompatActivity, device: BluetoothDevice) {
