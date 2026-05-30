@@ -97,26 +97,52 @@ internal class GMapsNotification(cx: Context, sbn: StatusBarNotification) : Navi
     private fun parseRemoteView(group: ViewGroup): NavigationData {
         val data = navigationData
 
-        val directionText = findChildByName(group, "text") as TextView?
-        val etaText = findChildByName(group, "header_text") as TextView?
+        val allTexts = mutableListOf<String>()
+        findAllTexts(group, allTexts)
+
         val titleText = findChildByName(group, "title") as TextView?
-        // val timeText = findChildByName(group, "time") as TextView?
+        val directionText = findChildByName(group, "text") as TextView?
         val rightIcon = findChildByName(group, "right_icon") as ImageView?
 
-        // parse ETE & ETA
-        if (etaText != null) {
-            val text = etaText.text.toString()
-            Timber.d("Parsing ETA text: $text")
-            val etaList = text.split("·")
-            if (etaList.size >= 3) {
-                val ete = etaList[0].trim()
-                val distance = etaList[1].trim()
-                val eta = etaList[2].trim().removeSuffix("ETA").trim()
-                data.eta = NavigationEta(eta, ete, distance)
-            } else {
-                Timber.w("ETA text does not have expected format (size ${etaList.size}): $text")
+        // Bestehende Werte beibehalten, falls wir in einer anderen View schon was gefunden haben
+        var ete: String? = data.eta.ete
+        var totalDistance: String? = data.eta.distance
+        var arrivalTime: String? = data.eta.eta
+
+        // Ignoriere die Texte der Wegbeschreibung für die ETA-Suche
+        val ignoreTexts = listOfNotNull(
+            titleText?.text?.toString(),
+            directionText?.text?.toString()
+        )
+
+        for (text in allTexts) {
+            if (ignoreTexts.any { it == text } || text.contains("Richtung") || text.contains("abbiegen")) continue
+
+            val parts = text.split(Regex("[·•|\\n]")).map { it.trim() }.filter { it.isNotEmpty() }
+            
+            for (part in parts) {
+                when {
+                    // Fahrzeit: "1 h 17 min", "15 min", "1 Std. 5 Min."
+                    part.matches(Regex(".*\\d+\\s*(h|min|Std|Min).*")) -> {
+                        if (ete == null || ete == "---") ete = part
+                    }
+                    
+                    // Gesamtstrecke: "93 km", "800 m"
+                    part.matches(Regex(".*\\d+\\s*(km|m)$")) -> {
+                        if (totalDistance == null || totalDistance == "---") totalDistance = part
+                    }
+                    
+                    // Ankunftszeit: "09:24"
+                    part.matches(Regex(".*\\d{1,2}:\\d{2}.*")) -> {
+                        if (arrivalTime == null || arrivalTime == "---") {
+                            arrivalTime = part.replace(Regex("Ankunft um|Ankunft|ETA"), "").trim()
+                        }
+                    }
+                }
             }
         }
+
+        data.eta = NavigationEta(arrivalTime, ete, totalDistance)
 
         var nextDistance = ""
         if (titleText != null && titleText.text.trim().isNotEmpty()) {
@@ -156,6 +182,16 @@ internal class GMapsNotification(cx: Context, sbn: StatusBarNotification) : Navi
         // Timber.v("$data")
 
         return data
+    }
+
+    private fun findAllTexts(group: ViewGroup, result: MutableList<String>) {
+        for (child in group.children) {
+            if (child is TextView && child.text.isNotEmpty()) {
+                result.add(child.text.toString())
+            } else if (child is ViewGroup) {
+                findAllTexts(child, result)
+            }
+        }
     }
 
     // for debugging
