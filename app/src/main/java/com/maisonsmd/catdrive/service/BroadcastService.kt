@@ -238,7 +238,7 @@ class BleService : Service(), LocationListener {
 
         val navData = com.maisonsmd.catdrive.lib.NavigationData().apply {
             nextDirection = com.maisonsmd.catdrive.lib.NavigationDirection(
-                nextRoad = nextRoad,
+                nextRoad = nextRoad, 
                 distance = distanceStr
             )
             this.eta = com.maisonsmd.catdrive.lib.NavigationEta(
@@ -249,12 +249,24 @@ class BleService : Service(), LocationListener {
             
             // Map Locus Action to Icon
             val iconRes = when (action) {
-                PointRteAction.LEFT, PointRteAction.LEFT_SLIGHT, PointRteAction.STAY_LEFT -> android.R.drawable.ic_menu_revert
-                PointRteAction.RIGHT, PointRteAction.RIGHT_SLIGHT, PointRteAction.STAY_RIGHT -> android.R.drawable.ic_menu_directions
-                PointRteAction.LEFT_SHARP -> android.R.drawable.ic_menu_revert
-                PointRteAction.RIGHT_SHARP -> android.R.drawable.ic_menu_directions
+                PointRteAction.LEFT, PointRteAction.LEFT_SHARP -> R.drawable.turn_left
+                PointRteAction.LEFT_SLIGHT, PointRteAction.STAY_LEFT -> R.drawable.turn_slight_left
+                
+                PointRteAction.RIGHT, PointRteAction.RIGHT_SHARP -> R.drawable.turn_right
+                PointRteAction.RIGHT_SLIGHT, PointRteAction.STAY_RIGHT -> R.drawable.turn_slight_right
+                
+                PointRteAction.U_TURN_LEFT, PointRteAction.U_TURN -> R.drawable.u_turn_left
+                PointRteAction.U_TURN_RIGHT -> R.drawable.u_turn_right
+                
                 PointRteAction.CONTINUE_STRAIGHT, PointRteAction.STAY_STRAIGHT -> android.R.drawable.ic_menu_upload
-                PointRteAction.ROUNDABOUT_EXIT_1, PointRteAction.ROUNDABOUT_EXIT_2, PointRteAction.ROUNDABOUT_EXIT_3 -> R.drawable.roundabout
+                
+                PointRteAction.ROUNDABOUT_EXIT_1, PointRteAction.ROUNDABOUT_EXIT_2, 
+                PointRteAction.ROUNDABOUT_EXIT_3, PointRteAction.ROUNDABOUT_EXIT_4,
+                PointRteAction.ROUNDABOUT_EXIT_5, PointRteAction.ROUNDABOUT_EXIT_6,
+                PointRteAction.ROUNDABOUT_EXIT_7, PointRteAction.ROUNDABOUT_EXIT_8 -> R.drawable.roundabout
+                
+                PointRteAction.ARRIVE_DEST, PointRteAction.ARRIVE_DEST_LEFT, PointRteAction.ARRIVE_DEST_RIGHT -> android.R.drawable.ic_menu_myplaces
+
                 else -> android.R.drawable.ic_menu_compass
             }
             
@@ -566,9 +578,9 @@ class BleService : Service(), LocationListener {
         }
 
         val map = mapOf(
-            "nextRd" to sanitize(data?.nextDirection?.nextRoad ?: ""),
+            "nextRd" to sanitize(data?.nextDirection?.distance ?: ""), // Meter unter den Pfeil
             "nextRdDesc" to sanitize(data?.nextDirection?.nextRoadAdditionalInfo ?: ""),
-            "distToNext" to sanitize(data?.nextDirection?.distance ?: ""),
+            "distToNext" to sanitize(data?.nextDirection?.nextRoad ?: ""), // Text in die Mitte
             "totalDist" to sanitize(data?.eta?.distance ?: ""),
             "eta" to sanitize(data?.eta?.eta ?: ""),
             "ete" to sanitize(data?.eta?.ete ?: ""),
