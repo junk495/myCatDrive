@@ -2,10 +2,10 @@ package com.maisonsmd.catdrive.service
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import com.maisonsmd.catdrive.lib.GMAPS_PACKAGE
 import com.maisonsmd.catdrive.lib.GMapsNotification
 import com.maisonsmd.catdrive.lib.NavigationData
 import com.maisonsmd.catdrive.lib.NavigationNotification
+import com.maisonsmd.catdrive.lib.SUPPORTED_PACKAGES
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -50,15 +50,14 @@ open class NavigationListener : NotificationListenerService() {
         }
     }
 
-    private fun isGoogleMapsNotification(sbn: StatusBarNotification?): Boolean {
-        // Timber.v("enabled ${mEnabled}, isOngoing: ${sbn!!.isOngoing}, id: ${sbn.id}")
+    private fun isNavigationNotification(sbn: StatusBarNotification?): Boolean {
         if (!enabled || sbn == null)
             return false
 
-        if (!sbn.isOngoing || GMAPS_PACKAGE !in sbn.packageName)
+        if (!sbn.isOngoing)
             return false
 
-        return (sbn.id == 1)
+        return SUPPORTED_PACKAGES.any { it in sbn.packageName }
     }
 
     protected open fun onNavigationNotificationAdded(navNotification: NavigationNotification) {
@@ -71,16 +70,12 @@ open class NavigationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        // Timber.v("onNotificationPosted ${sbn?.packageName}")
-
-        if (isGoogleMapsNotification(sbn))
+        if (isNavigationNotification(sbn))
             handleGoogleNotification(sbn!!)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        // Timber.v("onNotificationRemoved ${sbn?.packageName}")
-
-        if (isGoogleMapsNotification(sbn)) {
+        if (isNavigationNotification(sbn)) {
             mNotificationParserCoroutine?.cancel()
 
             onNavigationNotificationRemoved(
