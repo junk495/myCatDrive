@@ -290,7 +290,8 @@ class BleService : Service(), LocationListener {
                 val drawable = try { ContextCompat.getDrawable(applicationContext, resId) } catch (e: Exception) { null }
                 return drawable?.let {
                     androidx.core.graphics.drawable.DrawableCompat.setTint(it, android.graphics.Color.WHITE)
-                    val bitmap = Bitmap.createBitmap(64, 60, Bitmap.Config.ARGB_8888)
+                    // Auf 64x64 geändert für perfekte Symmetrie und 512-Byte Puffer
+                    val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
                     it.setBounds(0, 0, canvas.width, canvas.height)
                     it.draw(canvas)
