@@ -26,6 +26,10 @@
             android:singleLine="true"
             android:inputType="number"
             android:title="@string/title_speed_limit" />
+        <Preference
+            android:key="clear_icon_cache"
+            android:title="Clear Icon Cache"
+            android:summary="Force display to redownload all icons" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/service_header" android:summary="@string/service_summary">

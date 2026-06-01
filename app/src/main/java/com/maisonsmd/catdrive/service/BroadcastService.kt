@@ -13,6 +13,7 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -81,9 +82,11 @@ class BleService : Service(), LocationListener {
     private var mBluetoothGatt: BluetoothGatt? = null
     private val mBinder = LocalBinder()
     private var mLastNavigationData: NavigationData? = null
+    private var mLastSendTime: Long = 0
     private var mDataWriteQueue: BleWriteQueue = BleWriteQueue()
     private var mIsSending: Boolean = false
     private var mIconMap: MutableMap<String, ByteArray> = mutableMapOf()
+    private var mCurrentSpeed: Int = 0
 
     val connectedDevice: BluetoothDevice?
         get() = mDevice
@@ -170,15 +173,17 @@ class BleService : Service(), LocationListener {
     }
 
     private fun processUpdateContainer(container: UpdateContainer) {
-        // Extrahiere Navigationspunkt (nächste Abbiegung)
+        // 1. Nächste Abbiegung
         val nextRoad = container.guideNavPoint1Name ?: ""
         val distance = container.guideNavPoint1Dist
-        
-        // Extrahiere Pfeil-Aktion
         val action = container.guideNavPoint1Action
         
-        // Extrahiere Gesamtdistanz zum Ziel
-        val totalDistance = container.guideDistToFinish
+        // 2. Übernächste Abbiegung & Hindernisse
+        val nextRoad2 = container.guideNavPoint2Name ?: ""
+        val distance2 = container.guideNavPoint2Dist
+        val action2 = container.guideNavPoint2Action
+        val viaName = container.guideNextViaName ?: ""
+        val viaDist = container.guideNextViaDist
 
         // Distanz zur nächsten Abbiegung formatieren
         val distanceStr = when {
@@ -186,15 +191,30 @@ class BleService : Service(), LocationListener {
             distance >= 1000 -> String.format(java.util.Locale.US, "%.1f km", distance / 1000.0)
             else -> "${distance.toInt()} m"
         }
+
+        // Übernächste Distanz
+        val distance2Str = when {
+            distance2 <= 0 -> ""
+            distance2 >= 1000 -> String.format(java.util.Locale.US, "%.1f km", distance2 / 1000.0)
+            else -> "${distance2.toInt()} m"
+        }
+
+        // Hindernis Distanz
+        val viaDistStr = when {
+            viaDist <= 0 -> ""
+            viaDist >= 1000 -> String.format(java.util.Locale.US, "%.1f km", viaDist / 1000.0)
+            else -> "${viaDist.toInt()} m"
+        }
         
         // Gesamtdistanz formatieren
+        val totalDistance = container.guideDistToFinish
         val totalDistanceStr = when {
             totalDistance < 0 -> ""
             totalDistance >= 1000 -> String.format(java.util.Locale.US, "%.1f km", totalDistance / 1000.0)
             else -> "${totalDistance.toInt()} m"
         }
 
-        // Ankunftszeit berechnen (ETA) und Fahrzeit (ETE) formatieren
+        // 4. Ankunftszeit berechnen (ETA) und Fahrzeit (ETE) formatieren
         val eteMillis = container.guideTimeToFinish
         var etaStr = ""
         var eteStr = ""
@@ -210,9 +230,36 @@ class BleService : Service(), LocationListener {
         }
 
         val navData = com.maisonsmd.catdrive.lib.NavigationData().apply {
+            // Map Locus Actions to Icon Names for ESP32
+            fun getIconName(act: PointRteAction): String {
+                return when (act) {
+                    PointRteAction.LEFT, PointRteAction.LEFT_SHARP -> "turn_left"
+                    PointRteAction.LEFT_SLIGHT, PointRteAction.STAY_LEFT -> "turn_slight_left"
+                    PointRteAction.RIGHT, PointRteAction.RIGHT_SHARP -> "turn_right"
+                    PointRteAction.RIGHT_SLIGHT, PointRteAction.STAY_RIGHT -> "turn_slight_right"
+                    PointRteAction.U_TURN_LEFT, PointRteAction.U_TURN -> "u_turn_left"
+                    PointRteAction.U_TURN_RIGHT -> "u_turn_right"
+                    PointRteAction.CONTINUE_STRAIGHT, PointRteAction.STAY_STRAIGHT,
+                    PointRteAction.NO_MANEUVER, PointRteAction.NO_MANEUVER_NAME_CHANGE -> "straight"
+                    PointRteAction.ROUNDABOUT_EXIT_1, PointRteAction.ROUNDABOUT_EXIT_2, 
+                    PointRteAction.ROUNDABOUT_EXIT_3, PointRteAction.ROUNDABOUT_EXIT_4,
+                    PointRteAction.ROUNDABOUT_EXIT_5, PointRteAction.ROUNDABOUT_EXIT_6,
+                    PointRteAction.ROUNDABOUT_EXIT_7, PointRteAction.ROUNDABOUT_EXIT_8 -> "roundabout_left"
+                    PointRteAction.ARRIVE_DEST, PointRteAction.ARRIVE_DEST_LEFT, PointRteAction.ARRIVE_DEST_RIGHT -> "destination"
+                    else -> "compass"
+                }
+            }
+
             nextDirection = com.maisonsmd.catdrive.lib.NavigationDirection(
                 nextRoad = nextRoad, 
-                distance = distanceStr
+                nextTurn2 = distance2Str,
+                nextRoadAdditionalInfo = nextRoad2,
+                hazard = viaDistStr,
+                hazardText = viaName,
+                distance = distanceStr,
+                iconName = getIconName(action),
+                iconName2 = if (distance2 > 0) getIconName(action2) else "",
+                hazardIconName = if (viaDist > 0) "alert" else ""
             )
             this.eta = com.maisonsmd.catdrive.lib.NavigationEta(
                 eta = etaStr,
@@ -220,48 +267,51 @@ class BleService : Service(), LocationListener {
                 distance = totalDistanceStr 
             )
             
-            // Map Locus Action to Icon
-            val iconRes = when (action) {
-                PointRteAction.LEFT, PointRteAction.LEFT_SHARP -> R.drawable.turn_left
-                PointRteAction.LEFT_SLIGHT, PointRteAction.STAY_LEFT -> R.drawable.turn_slight_left
-                
-                PointRteAction.RIGHT, PointRteAction.RIGHT_SHARP -> R.drawable.turn_right
-                PointRteAction.RIGHT_SLIGHT, PointRteAction.STAY_RIGHT -> R.drawable.turn_slight_right
-                
-                PointRteAction.U_TURN_LEFT, PointRteAction.U_TURN -> R.drawable.u_turn_left
-                PointRteAction.U_TURN_RIGHT -> R.drawable.u_turn_right
-                
-                PointRteAction.CONTINUE_STRAIGHT, PointRteAction.STAY_STRAIGHT -> android.R.drawable.ic_menu_upload
-                
-                PointRteAction.ROUNDABOUT_EXIT_1, PointRteAction.ROUNDABOUT_EXIT_2, 
-                PointRteAction.ROUNDABOUT_EXIT_3, PointRteAction.ROUNDABOUT_EXIT_4,
-                PointRteAction.ROUNDABOUT_EXIT_5, PointRteAction.ROUNDABOUT_EXIT_6,
-                PointRteAction.ROUNDABOUT_EXIT_7, PointRteAction.ROUNDABOUT_EXIT_8 -> R.drawable.roundabout_left
-                
-                PointRteAction.ARRIVE_DEST, PointRteAction.ARRIVE_DEST_LEFT, PointRteAction.ARRIVE_DEST_RIGHT -> android.R.drawable.ic_menu_myplaces
+            this.phoneBattery = container.deviceBatteryValue
+            this.gpsAccuracy = if (container.isGpsLocValid) container.locMyLocation.accuracyHor ?: -1f else -1f
+            this.speed = mCurrentSpeed
 
-                else -> android.R.drawable.ic_menu_compass
+            // Handy-App UI braucht Bitmaps
+            fun bitmapFromResName(name: String): Bitmap? {
+                if (name == "") return null
+                val resId = when(name) {
+                    "turn_left" -> R.drawable.turn_left
+                    "turn_slight_left" -> R.drawable.turn_slight_left
+                    "turn_right" -> R.drawable.turn_right
+                    "turn_slight_right" -> R.drawable.turn_slight_right
+                    "u_turn_left" -> R.drawable.u_turn_left
+                    "u_turn_right" -> R.drawable.u_turn_right
+                    "straight" -> R.drawable.straight
+                    "roundabout_left" -> R.drawable.roundabout_left
+                    "destination" -> android.R.drawable.ic_menu_myplaces
+                    "alert" -> android.R.drawable.ic_dialog_alert
+                    else -> android.R.drawable.ic_menu_compass
+                }
+                val drawable = try { ContextCompat.getDrawable(applicationContext, resId) } catch (e: Exception) { null }
+                return drawable?.let {
+                    androidx.core.graphics.drawable.DrawableCompat.setTint(it, android.graphics.Color.WHITE)
+                    val bitmap = Bitmap.createBitmap(64, 60, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    it.setBounds(0, 0, canvas.width, canvas.height)
+                    it.draw(canvas)
+                    bitmap
+                }
             }
-            
-            // Konvertiere Vector/Drawable zu Bitmap für das Bluetooth-System
-            val drawable = ContextCompat.getDrawable(applicationContext, iconRes)
-            drawable?.let {
-                // Erzwinge weiße Farbe für das Bitmap
-                androidx.core.graphics.drawable.DrawableCompat.setTint(it, android.graphics.Color.WHITE)
 
-                val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(bitmap)
-                it.setBounds(0, 0, canvas.width, canvas.height)
-                it.draw(canvas)
-                this.actionIcon = NavigationIcon(bitmap)
-            }
+            this.actionIcon = NavigationIcon(bitmapFromResName(nextDirection.iconName ?: ""))
+            this.actionIcon2 = NavigationIcon(bitmapFromResName(nextDirection.iconName2 ?: ""))
+            this.hazardIcon = NavigationIcon(bitmapFromResName(nextDirection.hazardIconName ?: ""))
         }
 
         // Verhindere Flackern: Nur senden, wenn sich die Daten geändert haben
-        if (navData == mLastNavigationData) {
+        // Heartbeat: Mindestens alle 2 Sekunden senden
+        val timeSinceLastSend = System.currentTimeMillis() - mLastSendTime
+        if (navData == mLastNavigationData && timeSinceLastSend < 2000) {
             return
         }
+
         mLastNavigationData = navData
+        mLastSendTime = System.currentTimeMillis()
 
         // Sende die Daten an die UI und an das Bluetooth-Gerät (via sendToDevice)
         @OptIn(DelicateCoroutinesApi::class)
@@ -417,40 +467,80 @@ class BleService : Service(), LocationListener {
             status: Int
         ) {
             super.onCharacteristicWrite(gatt, characteristic, status)
+            Timber.d("onCharacteristicWrite: $status")
 
-            Timber.d("onCharacteristicWrite: $status (0 means success)")
-
-            mIsSending = false
-            if (mDataWriteQueue.size > 0) {
-                write(mDataWriteQueue.pop())
+            synchronized(this@BleService) {
+                mIsSending = false
+                processNextInQueue()
             }
         }
     }
 
     private fun write(item: QueueItem) {
-        Timber.d("writing ${item.uuid}=${item.data.toString(Charsets.UTF_8)}")
-        if (mConnectionState != BluetoothProfile.STATE_CONNECTED) {
-//            Timber.e("write: not connected")
-            return
-        }
+        // BLE-Operationen müssen auf dem Main-Thread und synchronisiert laufen
+        GlobalScope.launch(Dispatchers.Main) {
+            synchronized(this@BleService) {
+                if (mConnectionState != BluetoothProfile.STATE_CONNECTED) return@launch
 
-        if (mIsSending) {
-            Timber.d("Busy with ${mDataWriteQueue.size} requests, queueing")
-            mDataWriteQueue.add(item)
-            return
-        }
+                if (mIsSending) {
+                    // Verhindere das Überlaufen der Queue mit NAV-Daten
+                    if (item.overwrite) {
+                        mDataWriteQueue.mQueue.removeAll { it.uuid == item.uuid }
+                    }
+                    mDataWriteQueue.add(item)
+                    return@launch
+                }
 
-        Timber.d("Ble free to write, writing")
-        mIsSending = true
-        mBluetoothGatt?.let {
+                mIsSending = true
+                executeWrite(item)
+            }
+        }
+    }
+
+    private fun executeWrite(item: QueueItem) {
+        mBluetoothGatt?.let { gatt ->
             val ch = findCharacteristic(item.uuid)
             if (ch == null) {
-                Timber.e("No characteristic found for ${item.uuid}")
+                mIsSending = false
                 return
             }
 
-            ch.value = item.data
-            it.writeCharacteristic(ch)
+            try {
+                Timber.d("BLE Write: ${item.uuid} (Größe: ${item.data.size} Bytes)")
+                
+                val success = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeCharacteristic(ch, item.data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothStatusCodes.SUCCESS
+                } else {
+                    ch.value = item.data
+                    gatt.writeCharacteristic(ch)
+                }
+
+                if (!success) {
+                    Timber.e("BLE Schreibvorgang vom System abgelehnt!")
+                    mIsSending = false
+                    processNextInQueue()
+                } else {
+                    // Notfall-Timeout: Falls kein Callback kommt, nach 1,5s weitermachen
+                    GlobalScope.launch(Dispatchers.Main) {
+                        delay(1500)
+                        if (mIsSending) {
+                            Timber.w("BLE Write Timeout für ${item.uuid}")
+                            mIsSending = false
+                            processNextInQueue()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Kritischer Fehler beim BLE Schreiben")
+                mIsSending = false
+                processNextInQueue()
+            }
+        } ?: run { mIsSending = false }
+    }
+
+    private fun processNextInQueue() {
+        if (mDataWriteQueue.size > 0) {
+            write(mDataWriteQueue.pop())
         }
     }
 
@@ -512,15 +602,19 @@ class BleService : Service(), LocationListener {
         }
     }
 
-    fun sendPreferencesToDevice() {
+    fun sendPreferencesToDevice(resetCache: Boolean = false) {
         val sp =
             applicationContext.getSharedPreferences(SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE)
 
-        val map = mapOf(
-            "lightTheme" to sp.getBoolean("display_light_theme", true).toString(),
-            "brightness" to sp.getInt("display_brightness", 50).toString(),
-            "speedLimit" to sp.getInt("speed_limit", 50).toString()
+        val map = mutableMapOf(
+            "l" to (if (sp.getBoolean("display_light_theme", false)) "1" else "0"),
+            "br" to sp.getInt("display_brightness", 20).toString(),
+            "sl" to sp.getInt("speed_limit", 50).toString()
         )
+
+        if (resetCache) {
+            map["removeAllFiles"] = "true"
+        }
 
         write(
             QueueItem(BleCharacteristics.CHA_SETTINGS, toKeyValString(map).toByteArray())
@@ -528,56 +622,45 @@ class BleService : Service(), LocationListener {
     }
 
     fun sendToDevice(data: NavigationData?) {
-        fun sanitize(str: String): String {
-            // Remove non-breaking space
-            return str.replace("\u00a0", " ").replace("\n", " ").replace("…", "...")
+        fun sanitize(str: String, maxLen: Int = 20): String {
+            // Radikale Kürzung, um die 237-Byte-MTU-Grenze absolut sicher einzuhalten
+            val s = str.replace("\u00a0", " ").replace("\n", " ").replace("…", "...")
+            return if (s.length > maxLen) s.substring(0, maxLen - 3) + "..." else s
         }
 
-        val bitmap = data?.actionIcon?.bitmap
+        val sp = applicationContext.getSharedPreferences(SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE)
+        val isLight = sp.getBoolean("display_light_theme", false)
+        val brightness = sp.getInt("display_brightness", 20)
+        val speedLimit = sp.getInt("speed_limit", 50)
 
-        var compressed: ByteArray? = bitmap?.let {
-            val helper = BitmapHelper()
-            helper.toBlackAndWhiteBuffer(
-                helper.compressBitmap(
-                    bitmap,
-                    Size(64, 62)
-                )
-            )
-        }
-
-        var iconHash = ""
-        if (compressed != null) {
-            iconHash = md5(compressed)
-            iconHash = iconHash.substring(iconHash.length - 10, iconHash.length)
-        }
-
+        // Wir nutzen extrem kurze Keys und kurze Texte, um unter 237 Bytes zu bleiben
         val map = mapOf(
-            "nextRd" to sanitize(data?.nextDirection?.distance ?: ""), // Meter unter den Pfeil
-            "nextRdDesc" to sanitize(data?.nextDirection?.nextRoadAdditionalInfo ?: ""),
-            "distToNext" to sanitize(data?.nextDirection?.nextRoad ?: ""), // Text in die Mitte
-            "totalDist" to sanitize(data?.eta?.distance ?: ""),
-            "eta" to sanitize(data?.eta?.eta ?: ""),
-            "ete" to sanitize(data?.eta?.ete ?: ""),
-            "iconHash" to (iconHash)
+            "nTD" to sanitize(data?.nextDirection?.distance ?: "", 10),
+            "nTT" to sanitize(data?.nextDirection?.nextRoad ?: "", 25),
+            "nTI" to (data?.nextDirection?.iconName ?: ""), // Sendet jetzt den NAMEN (z.B. "turn_left")
+            "n2D" to sanitize(data?.nextDirection?.nextTurn2 ?: "", 10),
+            "n2T" to sanitize(data?.nextDirection?.nextRoadAdditionalInfo ?: "", 25),
+            "n2I" to (data?.nextDirection?.iconName2 ?: ""), // Sendet jetzt den NAMEN
+            "hD" to sanitize(data?.nextDirection?.hazard ?: "", 10),
+            "hT" to sanitize(data?.nextDirection?.hazardText ?: "", 25),
+            "hI" to (data?.nextDirection?.hazardIconName ?: ""), // Sendet jetzt den NAMEN
+            "eta" to (data?.eta?.eta ?: ""),
+            "ete" to (data?.eta?.ete ?: ""),
+            "tD" to sanitize(data?.eta?.distance ?: "", 10),
+            "s" to (data?.speed ?: 0).toString(),
+            "b" to (data?.phoneBattery ?: -1).toString(),
+            "a" to String.format(java.util.Locale.US, "%.1f", data?.gpsAccuracy ?: -1f),
+            "l" to (if (isLight) "1" else "0"),
+            "br" to brightness.toString(),
+            "sl" to speedLimit.toString()
         )
 
-        write(QueueItem(BleCharacteristics.CHA_NAV, toKeyValString(map).toByteArray()))
+        val payload = toKeyValString(map).toByteArray()
 
-        // Only send once
-        if (iconHash != "" && compressed != null && !mIconMap.containsKey(iconHash)) {
-            if (mConnectionState == BluetoothProfile.STATE_CONNECTED) {
-                // Store the bitmap for later use
-                mIconMap[iconHash] = compressed
+        // Sende Nav-Daten mit 'overwrite = true', damit die Queue nicht verstopft
+        write(QueueItem(BleCharacteristics.CHA_NAV, payload, true))
 
-                compressed.let {
-                    val withIconHash = ("$iconHash;").toByteArray()
-                    Timber.w("it size: ${it.size}")
-                    write(QueueItem(BleCharacteristics.CHA_NAV_TBT_ICON, withIconHash + it, true))
-                }
-            }
-        } else {
-            Timber.i("Icon $iconHash already sent before")
-        }
+        // BITMAP-TRANSFER DEAKTIVIERT: Der ESP32 nutzt seine eigenen festen Bilder
     }
 
     private fun md5(s: ByteArray): String {
@@ -634,17 +717,18 @@ class BleService : Service(), LocationListener {
     override fun onLocationChanged(location: Location) {
         // Schwellenwert: Alles unter 0.5 m/s (~1.8 km/h) ist Stillstand (0 km/h)
         val speedKmh = location.speed * 3.6f
-        val speed = if (speedKmh < 2.0f) 0 else ceil(speedKmh).toInt()
+        mCurrentSpeed = if (speedKmh < 2.0f) 0 else ceil(speedKmh).toInt()
 
-        Timber.d("Speed: $speed")
+        Timber.d("Speed: $mCurrentSpeed")
 
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(
             Intent(Intents.GPS_UPDATE).apply {
-                putExtra("speed", speed)
+                putExtra("speed", mCurrentSpeed)
             }
         )
-
-        write(QueueItem(BleCharacteristics.CHA_GPS_SPEED, speed.toString().toByteArray()))
+        
+        // Wir senden keine separate CHA_GPS_SPEED mehr, da speed jetzt im NAV-Paket enthalten ist
+        // write(QueueItem(BleCharacteristics.CHA_GPS_SPEED, mCurrentSpeed.toString().toByteArray()))
     }
 
     private fun updateNotificationText(text: String) {
@@ -709,108 +793,5 @@ class BleService : Service(), LocationListener {
         }
 
         return result
-    }
-}
-
-class LocusReceiver : android.content.BroadcastReceiver() {
-    override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
-        val action = intent.action ?: return
-        Timber.d("LocusReceiver empfängt Aktion: $action")
-
-        // 1. Weg: Offizielle Locus API (UpdateContainer)
-        if (action == "locus.api.android.ACTION_PERIODIC_UPDATE") {
-            val extras = intent.extras
-            var data = intent.getByteArrayExtra("DATA") ?: intent.getByteArrayExtra("INTENT_EXTRA_UPDATE_DATA")
-            
-            var nextRoad = ""
-            var distance = -1.0
-            var eteMillis = 0L
-
-            if (data != null) {
-                val container = try {
-                    val dr = DataReaderBigEndian(data)
-                    Storable.read(UpdateContainer::class.java, dr)
-                } catch (e: Exception) {
-                    null
-                }
-                
-                if (container != null) {
-                    nextRoad = container.guideNavPoint1Name ?: ""
-                    distance = container.guideNavPoint1Dist
-                    eteMillis = container.guideTimeToFinish
-                }
-            } else if (extras != null) {
-                // Fallback: Locus sendet Einzel-Felder (Numeric IDs)
-                // 1401 = NavPoint 1 Name, 1403 = NavPoint 1 Distance, 1503 = Time to finish
-                nextRoad = extras.getString("1401") ?: ""
-                distance = extras.getDouble("1403", -1.0)
-                
-                // Falls 1403 kein Double ist, versuche es als String
-                if (distance < 0) {
-                    val distStr = extras.getString("1403") ?: ""
-                    distance = distStr.toDoubleOrNull() ?: -1.0
-                }
-
-                // Verbleibende Zeit (1503) - Flexibel als String oder Long lesen
-                val eteValue = extras.get("1503")
-                eteMillis = when (eteValue) {
-                    is Long -> eteValue
-                    is String -> eteValue.toLongOrNull() ?: 0L
-                    is Int -> eteValue.toLong()
-                    else -> 0L
-                }
-                
-                // Falls Locus die Zeit in Sekunden sendet (oft bei Strings), in Millisekunden umrechnen
-                if (eteMillis in 1..999999) eteMillis *= 1000
-            }
-
-            if (nextRoad.isNotEmpty() || distance >= 0) {
-                processAndSend(context, nextRoad, distance, eteMillis)
-            }
-            return
-        } 
-        // 2. Weg: Einfache Nav-Daten (Fallback)
-        else if (action == "com.locus.map.NEW_NAV_DATA") {
-            val nextRoad = intent.getStringExtra("NAME") ?: ""
-            val distance = intent.getDoubleExtra("DISTANCE", -1.0)
-            val eta = intent.getLongExtra("ETA", 0L)
-            val eteMillis = if (eta > System.currentTimeMillis()) eta - System.currentTimeMillis() else 0L
-            
-            processAndSend(context, nextRoad, distance, eteMillis)
-        }
-    }
-
-    private fun processAndSend(context: android.content.Context, nextRoad: String, distance: Double, eteMillis: Long) {
-        // Distanz formatieren
-        val distanceStr = when {
-            distance < 0 -> "---"
-            distance >= 1000 -> String.format(java.util.Locale.US, "%.1f km", distance / 1000.0)
-            else -> "${distance.toInt()} m"
-        }
-
-        // ETA (Ankunftszeit) berechnen
-        val etaStr = if (eteMillis > 0) {
-            val arrivalTimestamp = System.currentTimeMillis() + eteMillis
-            java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(arrivalTimestamp))
-        } else ""
-
-        val navData = com.maisonsmd.catdrive.lib.NavigationData().apply {
-            nextDirection = com.maisonsmd.catdrive.lib.NavigationDirection(
-                nextRoad = nextRoad,
-                distance = distanceStr
-            )
-            this.eta = com.maisonsmd.catdrive.lib.NavigationEta(
-                eta = etaStr,
-                distance = "" 
-            )
-        }
-
-        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).sendBroadcast(
-            android.content.Intent(com.maisonsmd.catdrive.lib.Intents.NAVIGATION_UPDATE).apply {
-                putExtra("navigation_data", navData)
-            }
-        )
-        
-        Timber.i("Locus verarbeitet: $nextRoad | $distanceStr | ETA: $etaStr")
     }
 }

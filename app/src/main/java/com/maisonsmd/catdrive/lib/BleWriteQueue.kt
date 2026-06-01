@@ -21,7 +21,7 @@ class BleWriteQueue {
         }
     }
 
-    private var mQueue: MutableList<QueueItem> = mutableListOf()
+    val mQueue: MutableList<QueueItem> = mutableListOf()
 
     fun add(newItem: QueueItem) {
         if (newItem.overwrite && mQueue.find { it.uuid == newItem.uuid } != null) {

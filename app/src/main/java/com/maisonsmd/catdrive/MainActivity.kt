@@ -160,6 +160,10 @@ class MainActivity : AppCompatActivity() {
         // Daten werden nun direkt vom BleService via Polling gesendet
     }
 
+    fun requestClearIconCache() {
+        mBroadcastService?.sendPreferencesToDevice(resetCache = true)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

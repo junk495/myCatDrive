@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.*
 import com.maisonsmd.catdrive.MainActivity
@@ -26,6 +27,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private lateinit var mDisplayLightThemeSwitch: SwitchPreference
     private lateinit var mDisplayBrightnessSlider: SeekBarPreference
     private lateinit var mSpeedLimitEdit: EditTextPreference
+    private lateinit var mClearIconCacheButton: Preference
 
     private lateinit var mSharedPref: SharedPreferences
 
@@ -73,6 +75,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         mDisplayLightThemeSwitch = preferenceScreen.findPreference("display_light_theme")!!
         mDisplayBrightnessSlider = preferenceScreen.findPreference("display_brightness")!!
         mSpeedLimitEdit = preferenceScreen.findPreference("speed_warning_limit")!!
+        mClearIconCacheButton = preferenceScreen.findPreference("clear_icon_cache")!!
 
         mSharedPref =
             mainActivity.getSharedPreferences(SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE)
@@ -102,6 +105,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         mConnectDeviceButton.setOnPreferenceClickListener { _ ->
             (activity as MainActivity).openDeviceSelectionActivity()
+            return@setOnPreferenceClickListener false
+        }
+
+        mClearIconCacheButton.setOnPreferenceClickListener { _ ->
+            (activity as MainActivity).requestClearIconCache()
+            Toast.makeText(context, "Clear cache request sent", Toast.LENGTH_SHORT).show()
             return@setOnPreferenceClickListener false
         }
 
