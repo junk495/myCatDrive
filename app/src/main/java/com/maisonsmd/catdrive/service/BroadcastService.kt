@@ -259,7 +259,7 @@ class BleService : Service(), LocationListener {
                 distance = distanceStr,
                 iconName = getIconName(action),
                 iconName2 = if (distance2 > 0) getIconName(action2) else "",
-                hazardIconName = if (viaDist > 0) "alert" else ""
+                hazardIconName = if (viaDist > 0) "hazard" else ""
             )
             this.eta = com.maisonsmd.catdrive.lib.NavigationEta(
                 eta = etaStr,
@@ -273,7 +273,7 @@ class BleService : Service(), LocationListener {
 
             // Handy-App UI braucht Bitmaps
             fun bitmapFromResName(name: String): Bitmap? {
-                if (name == "") return null
+                if (name == "" || name == "compass") return null // compass ignorieren für Bitmap-Ladung
                 val resId = when(name) {
                     "turn_left" -> R.drawable.turn_left
                     "turn_slight_left" -> R.drawable.turn_slight_left
@@ -284,9 +284,12 @@ class BleService : Service(), LocationListener {
                     "straight" -> R.drawable.straight
                     "roundabout_left" -> R.drawable.roundabout_left
                     "destination" -> android.R.drawable.ic_menu_myplaces
-                    "alert" -> android.R.drawable.ic_dialog_alert
-                    else -> android.R.drawable.ic_menu_compass
+                    "hazard" -> R.drawable.hazard
+                    else -> 0
                 }
+                
+                if (resId == 0) return null
+
                 val drawable = try { ContextCompat.getDrawable(applicationContext, resId) } catch (e: Exception) { null }
                 return drawable?.let {
                     androidx.core.graphics.drawable.DrawableCompat.setTint(it, android.graphics.Color.WHITE)
